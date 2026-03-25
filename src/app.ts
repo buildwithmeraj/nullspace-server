@@ -10,7 +10,8 @@ import type { IUser } from "./types/user.interface";
 const app: Application = express();
 
 // Middleware
-app.use(express.json());
+// Increase JSON size limit to support base64/data-uri uploads when needed.
+app.use(express.json({ limit: "10mb" }));
 app.use(
   cors({
     // Allow the frontend origin to send cookies (refresh token cookie).

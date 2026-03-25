@@ -1,5 +1,6 @@
 import express from "express";
 import { UserRoutes } from "./user.route";
+import { CloudinaryRoutes } from "./cloudinary.route";
 
 const router = express.Router();
 
@@ -8,6 +9,10 @@ const moduleRoutes = [
   {
     path: "/users",
     route: UserRoutes,
+  },
+  {
+    path: "/cloudinary",
+    route: CloudinaryRoutes,
   },
 ];
 

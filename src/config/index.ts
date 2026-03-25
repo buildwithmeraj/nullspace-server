@@ -16,4 +16,9 @@ export default {
   gemini_api_key: process.env.GEMINI_API_KEY,
   google_client_id: process.env.GOOGLE_CLIENT_ID,
   google_client_secret: process.env.GOOGLE_CLIENT_SECRET,
+  cloudinary_cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  cloudinary_api_key:
+    process.env.CLOUDINARY_API_KEY ?? process.env.CLOUDINARY_API_KEY,
+  cloudinary_secret: process.env.CLOUDINARY_SECRET,
+  cloudinary_db_name: process.env.CLOUDINARY_DB_NAME,
 };
