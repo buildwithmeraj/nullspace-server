@@ -1,53 +1,59 @@
 import bcrypt from "bcrypt";
-import { Schema, model } from "mongoose";
+import { Schema } from "mongoose";
 import config from "../config";
+import { getDbModel } from "./db";
 import { IUser } from "../types/user.interface";
 
+// create user schema
 const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: false, select: false },
     role: { type: String, enum: ["admin", "user"], default: "user" },
+    image: { type: String, required: true },
+    bio: { type: String, required: false },
+    googleId: { type: String, sparse: true },
+    avatar: { type: String },
+    authProvider: { type: String, enum: ["local", "google"], default: "local" },
+    refreshToken: { type: String, default: null },
   },
   {
     timestamps: true,
+    collection: "users",
   },
 );
 
-// Pre-save middleware / hook : will run before saving a document
+// Hash passwords on create/update when the password field changes.
 userSchema.pre("save", async function () {
-  // 'this' refers to the document about to be saved
   const user = this;
 
-  // Only hash the password if it has been modified (or is new)
-  if (!user.isModified("password")) {
-    return;
-  }
+  if (!user.isModified("password")) return;
+  if (!user.password) return;
 
-  // Hash password using bcrypt salt rounds from config
   user.password = await bcrypt.hash(
     user.password as string,
     Number(config.bcrypt_salt_rounds),
   );
-
-  return;
 });
 
-// Post-save middleware / hook : will run directly after saving a document
 userSchema.post("save", function (user, next) {
-  // doc is the document that was just saved
-  // For example, we want to erase password field before returning doc after creation
-  // Or simply log the information
   console.log(
     `[Post-Save Hook]: A new user was created with email: ${user.email}`,
   );
 
-  // Note: Modifying doc here won't save it to DB (unless you call .save() again),
-  // but it does affect the object returned from the save() method in controller.
+  // Prevent leaking hashed password via the returned document instance.
   user.password = "";
 
   next();
 });
 
-export const User = model<IUser>("User", userSchema);
+export function getUserModel(dbName?: string) {
+  return getDbModel<IUser>(
+    "User",
+    userSchema,
+    dbName || config.users_db_name || config.database_name,
+  );
+}
+
+export const User = getUserModel();

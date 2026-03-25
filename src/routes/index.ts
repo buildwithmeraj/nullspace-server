@@ -3,6 +3,7 @@ import { UserRoutes } from "./user.route";
 
 const router = express.Router();
 
+// Central route registry: mount feature routers under their base paths.
 const moduleRoutes = [
   {
     path: "/users",
