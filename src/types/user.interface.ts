@@ -14,5 +14,5 @@ export interface IUser {
   authProvider?: "local" | "google";
   refreshToken?: string | null;
   // Friend/user connections. Stores referenced user ids.
-  alliances?: (Types.ObjectId | string)[];
+  friends?: (Types.ObjectId | string)[];
 }

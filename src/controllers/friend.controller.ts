@@ -20,28 +20,28 @@ function isParticipant(
   return uid === String(requesterId) || uid === String(recipientId);
 }
 
-async function syncAlliancesOnAccept(requesterId: unknown, recipientId: unknown) {
+async function syncAlliancesOnAccept(
+  requesterId: unknown,
+  recipientId: unknown,
+) {
   // Keep `User.alliances` in sync for fast reads.
   const requester = String(requesterId);
   const recipient = String(recipientId);
   await Promise.all([
-    User.updateOne(
-      { _id: requester },
-      { $addToSet: { alliances: recipient } },
-    ),
-    User.updateOne(
-      { _id: recipient },
-      { $addToSet: { alliances: requester } },
-    ),
+    User.updateOne({ _id: requester }, { $addToSet: { friends: recipient } }),
+    User.updateOne({ _id: recipient }, { $addToSet: { friends: requester } }),
   ]);
 }
 
-async function syncAlliancesOnRemove(requesterId: unknown, recipientId: unknown) {
+async function syncAlliancesOnRemove(
+  requesterId: unknown,
+  recipientId: unknown,
+) {
   const requester = String(requesterId);
   const recipient = String(recipientId);
   await Promise.all([
-    User.updateOne({ _id: requester }, { $pull: { alliances: recipient } }),
-    User.updateOne({ _id: recipient }, { $pull: { alliances: requester } }),
+    User.updateOne({ _id: requester }, { $pull: { friends: recipient } }),
+    User.updateOne({ _id: recipient }, { $pull: { friends: requester } }),
   ]);
 }
 
@@ -54,10 +54,14 @@ const create = async (req: Request, res: Response) => {
 
   const recipientId = req.body?.recipientId;
   if (!recipientId) {
-    return res.status(400).json({ success: false, message: "recipientId is required" });
+    return res
+      .status(400)
+      .json({ success: false, message: "recipientId is required" });
   }
   if (String(recipientId) === String(user._id)) {
-    return res.status(400).json({ success: false, message: "Cannot friend yourself" });
+    return res
+      .status(400)
+      .json({ success: false, message: "Cannot friend yourself" });
   }
 
   // Prevent duplicate requests in either direction.
@@ -81,7 +85,9 @@ const create = async (req: Request, res: Response) => {
     status: "pending",
   });
 
-  return res.status(201).json({ success: true, message: "Friend request sent", data: friend });
+  return res
+    .status(201)
+    .json({ success: true, message: "Friend request sent", data: friend });
 };
 
 const list = async (req: Request, res: Response) => {
@@ -98,7 +104,9 @@ const list = async (req: Request, res: Response) => {
   if (status) query.status = status;
 
   const friends = await Friend.find(query).sort({ createdAt: -1 });
-  return res.status(200).json({ success: true, message: "Friends fetched", data: friends });
+  return res
+    .status(200)
+    .json({ success: true, message: "Friends fetched", data: friends });
 };
 
 const getById = async (req: Request, res: Response) => {
@@ -109,14 +117,21 @@ const getById = async (req: Request, res: Response) => {
 
   const friend = await Friend.findById(req.params.id);
   if (!friend) {
-    return res.status(404).json({ success: false, message: "Friend not found" });
+    return res
+      .status(404)
+      .json({ success: false, message: "Friend not found" });
   }
 
-  if (!isAdmin(user) && !isParticipant(user, friend.requesterId, friend.recipientId)) {
+  if (
+    !isAdmin(user) &&
+    !isParticipant(user, friend.requesterId, friend.recipientId)
+  ) {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
 
-  return res.status(200).json({ success: true, message: "Friend fetched", data: friend });
+  return res
+    .status(200)
+    .json({ success: true, message: "Friend fetched", data: friend });
 };
 
 const update = async (req: Request, res: Response) => {
@@ -128,7 +143,9 @@ const update = async (req: Request, res: Response) => {
 
   const friend = await Friend.findById(req.params.id);
   if (!friend) {
-    return res.status(404).json({ success: false, message: "Friend not found" });
+    return res
+      .status(404)
+      .json({ success: false, message: "Friend not found" });
   }
 
   if (!isAdmin(user) && String(friend.recipientId) !== String(user._id)) {
@@ -136,14 +153,18 @@ const update = async (req: Request, res: Response) => {
   }
 
   if (friend.status === "accepted") {
-    return res.status(200).json({ success: true, message: "Already accepted", data: friend });
+    return res
+      .status(200)
+      .json({ success: true, message: "Already accepted", data: friend });
   }
 
   friend.status = "accepted";
   await friend.save();
   await syncAlliancesOnAccept(friend.requesterId, friend.recipientId);
 
-  return res.status(200).json({ success: true, message: "Friend request accepted", data: friend });
+  return res
+    .status(200)
+    .json({ success: true, message: "Friend request accepted", data: friend });
 };
 
 const remove = async (req: Request, res: Response) => {
@@ -155,10 +176,15 @@ const remove = async (req: Request, res: Response) => {
 
   const friend = await Friend.findById(req.params.id);
   if (!friend) {
-    return res.status(404).json({ success: false, message: "Friend not found" });
+    return res
+      .status(404)
+      .json({ success: false, message: "Friend not found" });
   }
 
-  if (!isAdmin(user) && !isParticipant(user, friend.requesterId, friend.recipientId)) {
+  if (
+    !isAdmin(user) &&
+    !isParticipant(user, friend.requesterId, friend.recipientId)
+  ) {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
 

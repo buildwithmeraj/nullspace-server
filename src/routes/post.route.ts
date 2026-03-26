@@ -9,6 +9,8 @@ router.use(protect);
 
 router.post("/", postControllers.create);
 router.get("/", postControllers.list);
+router.get("/friends", postControllers.listFriends);
+router.get("/user/:userId", postControllers.listByUser);
 router.get("/:id", postControllers.getById);
 router.patch("/:id", postControllers.update);
 router.delete("/:id", postControllers.remove);
