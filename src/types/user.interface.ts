@@ -13,4 +13,6 @@ export interface IUser {
   avatar?: string;
   authProvider?: "local" | "google";
   refreshToken?: string | null;
+  // Friend/user connections. Stores referenced user ids.
+  alliances?: (Types.ObjectId | string)[];
 }

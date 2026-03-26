@@ -17,6 +17,8 @@ const userSchema = new Schema<IUser>(
     avatar: { type: String },
     authProvider: { type: String, enum: ["local", "google"], default: "local" },
     refreshToken: { type: String, default: null },
+    // Friend/user connections. Stored as user ObjectId references.
+    alliances: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
   },
   {
     timestamps: true,

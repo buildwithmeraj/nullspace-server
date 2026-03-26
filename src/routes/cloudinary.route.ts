@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { cloudinaryControllers } from "../controllers/cloudinary.controller";
+import type { NextFunction, Request, Response } from "express";
 
 const router = express.Router();
 
@@ -18,5 +19,21 @@ router.post(
   upload.array("images", 10),
   cloudinaryControllers.uploadImages,
 );
+
+// Handle multer errors (e.g. "Unexpected field") with a clear client message.
+router.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+      code: err.code,
+      expectedFileFields: {
+        single: "image",
+        multiple: "images",
+      },
+    });
+  }
+  return next(err);
+});
 
 export const CloudinaryRoutes = router;
