@@ -97,7 +97,7 @@ const listFriends = async (req: Request, res: Response) => {
   if (!user?._id)
     return res.status(401).json({ success: false, message: "Unauthorized" });
 
-  const me = await User.findById(user._id).select("alliances").lean();
+  const me = await User.findById(user._id).select("friends").lean();
   const friendIds = (me?.friends ?? []).map((id) => String(id));
   const filteredFriendIds = friendIds.filter((id) => id !== String(user._id));
 

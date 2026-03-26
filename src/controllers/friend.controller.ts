@@ -20,11 +20,11 @@ function isParticipant(
   return uid === String(requesterId) || uid === String(recipientId);
 }
 
-async function syncAlliancesOnAccept(
+async function syncFriendsOnAccept(
   requesterId: unknown,
   recipientId: unknown,
 ) {
-  // Keep `User.alliances` in sync for fast reads.
+  // Keep `User.friends` in sync for fast reads.
   const requester = String(requesterId);
   const recipient = String(recipientId);
   await Promise.all([
@@ -33,7 +33,7 @@ async function syncAlliancesOnAccept(
   ]);
 }
 
-async function syncAlliancesOnRemove(
+async function syncFriendsOnRemove(
   requesterId: unknown,
   recipientId: unknown,
 ) {
@@ -160,7 +160,7 @@ const update = async (req: Request, res: Response) => {
 
   friend.status = "accepted";
   await friend.save();
-  await syncAlliancesOnAccept(friend.requesterId, friend.recipientId);
+  await syncFriendsOnAccept(friend.requesterId, friend.recipientId);
 
   return res
     .status(200)
@@ -193,7 +193,7 @@ const remove = async (req: Request, res: Response) => {
   const recipientId = friend.recipientId;
 
   await friend.deleteOne();
-  if (wasAccepted) await syncAlliancesOnRemove(requesterId, recipientId);
+  if (wasAccepted) await syncFriendsOnRemove(requesterId, recipientId);
 
   return res.status(200).json({ success: true, message: "Friend removed" });
 };
