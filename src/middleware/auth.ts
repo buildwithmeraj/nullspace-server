@@ -16,12 +16,16 @@ export const protect = async (
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string };
 
     // Load role/email so we can enforce owner/admin permissions in controllers.
-    const user = await User.findById(decoded.id).select("email role");
+    const user = await User.findById(decoded.id).select(
+      "name username email role",
+    );
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
     // `req.user` is also used by passport; keep a minimal payload.
     (req as Request & { user?: Express.User }).user = {
       _id: user._id,
+      name: user.name,
+      username: (user as any).username,
       email: user.email,
       role: user.role,
     };

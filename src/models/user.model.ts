@@ -8,6 +8,14 @@ import { IUser } from "../types/user.interface";
 const userSchema = new Schema<IUser>(
   {
     name: { type: String, required: true },
+    // Optional handle shown in UI. Kept sparse so legacy users without username can coexist.
+    username: {
+      type: String,
+      required: false,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: false, select: false },
     role: { type: String, enum: ["admin", "user"], default: "user" },

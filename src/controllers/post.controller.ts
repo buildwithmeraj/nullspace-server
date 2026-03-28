@@ -5,8 +5,10 @@ import { User } from "../models/user.model";
 
 const POST_CONTENT_MAX_CHARS = 10_000;
 
+type PostAuthor = { _id: unknown; name?: string; username?: string };
+
 function getRequestUser(req: Request) {
-  // `protect` middleware attaches `{ _id, email, role }` to `req.user`.
+  // `protect` middleware attaches `{ _id, name, username, email, role }` to `req.user`.
   return (req as Request & { user?: Express.User }).user;
 }
 
@@ -25,6 +27,27 @@ function normalizeImages(images: unknown): IPostImage[] {
   return images
     .filter((img) => img && typeof img === "object")
     .map((img) => img as IPostImage);
+}
+
+async function attachAuthors<T extends { userId: unknown }>(posts: T[]) {
+  const userIds = Array.from(
+    new Set(posts.map((p) => String(p.userId)).filter(Boolean)),
+  );
+  if (!userIds.length) {
+    return posts.map((p) => ({ ...p, user: null as PostAuthor | null }));
+  }
+
+  const users = await User.find({ _id: { $in: userIds } })
+    .select("_id name username")
+    .lean();
+
+  const userById = new Map<string, PostAuthor>();
+  for (const u of users) userById.set(String(u._id), u as PostAuthor);
+
+  return posts.map((p) => ({
+    ...p,
+    user: userById.get(String(p.userId)) ?? null,
+  }));
 }
 
 const create = async (req: Request, res: Response) => {
@@ -54,9 +77,17 @@ const create = async (req: Request, res: Response) => {
   }
 
   const post = await Post.create({ userId: user._id, content, images });
+  const created = post.toObject() as { userId: unknown };
+  const createdUser = await User.findById(created.userId)
+    .select("_id name username")
+    .lean();
   return res
     .status(201)
-    .json({ success: true, message: "Post created", data: post });
+    .json({
+      success: true,
+      message: "Post created",
+      data: { ...created, user: (createdUser as PostAuthor) ?? null },
+    });
 };
 
 const list = async (req: Request, res: Response) => {
@@ -66,10 +97,11 @@ const list = async (req: Request, res: Response) => {
 
   // Non-admins only see their own posts.
   const query = isAdmin(user) ? {} : { userId: user._id };
-  const posts = await Post.find(query).sort({ createdAt: -1 });
+  const posts = await Post.find(query).sort({ createdAt: -1 }).lean();
+  const postsWithUser = await attachAuthors(posts);
   return res
     .status(200)
-    .json({ success: true, message: "Posts fetched", data: posts });
+    .json({ success: true, message: "Posts fetched", data: postsWithUser });
 };
 
 const listByUser = async (req: Request, res: Response) => {
@@ -84,12 +116,13 @@ const listByUser = async (req: Request, res: Response) => {
       .json({ success: false, message: "userId is required" });
   }
 
-  const posts = await Post.find({ userId: targetUserId }).sort({
-    createdAt: -1,
-  });
+  const posts = await Post.find({ userId: targetUserId })
+    .sort({ createdAt: -1 })
+    .lean();
+  const postsWithUser = await attachAuthors(posts);
   return res
     .status(200)
-    .json({ success: true, message: "Posts fetched", data: posts });
+    .json({ success: true, message: "Posts fetched", data: postsWithUser });
 };
 
 const listFriends = async (req: Request, res: Response) => {
@@ -107,12 +140,13 @@ const listFriends = async (req: Request, res: Response) => {
       .json({ success: true, message: "Posts fetched", data: [] });
   }
 
-  const posts = await Post.find({ userId: { $in: filteredFriendIds } }).sort({
-    createdAt: -1,
-  });
+  const posts = await Post.find({ userId: { $in: filteredFriendIds } })
+    .sort({ createdAt: -1 })
+    .lean();
+  const postsWithUser = await attachAuthors(posts);
   return res
     .status(200)
-    .json({ success: true, message: "Posts fetched", data: posts });
+    .json({ success: true, message: "Posts fetched", data: postsWithUser });
 };
 
 const getById = async (req: Request, res: Response) => {
@@ -129,9 +163,18 @@ const getById = async (req: Request, res: Response) => {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
 
+  const postObj = post.toObject() as { userId: unknown };
+  const postUser = await User.findById(postObj.userId)
+    .select("_id name username")
+    .lean();
+
   return res
     .status(200)
-    .json({ success: true, message: "Post fetched", data: post });
+    .json({
+      success: true,
+      message: "Post fetched",
+      data: { ...postObj, user: (postUser as PostAuthor) ?? null },
+    });
 };
 
 const update = async (req: Request, res: Response) => {
@@ -175,9 +218,17 @@ const update = async (req: Request, res: Response) => {
   }
 
   await post.save();
+  const updated = post.toObject() as { userId: unknown };
+  const updatedUser = await User.findById(updated.userId)
+    .select("_id name username")
+    .lean();
   return res
     .status(200)
-    .json({ success: true, message: "Post updated", data: post });
+    .json({
+      success: true,
+      message: "Post updated",
+      data: { ...updated, user: (updatedUser as PostAuthor) ?? null },
+    });
 };
 
 const remove = async (req: Request, res: Response) => {
