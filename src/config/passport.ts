@@ -44,7 +44,6 @@ passport.use(
           existingByEmail.googleId = profile.id;
           existingByEmail.authProvider = "google";
           if (!existingByEmail.image) existingByEmail.image = photo ?? "";
-          if (!existingByEmail.avatar && photo) existingByEmail.avatar = photo;
           await existingByEmail.save();
           return done(null, existingByEmail);
         }
@@ -54,7 +53,6 @@ passport.use(
           name: profile.displayName || "Google User",
           email,
           image: photo ?? "https://placehold.co/256x256",
-          avatar: photo,
           googleId: profile.id,
           authProvider: "google",
         });

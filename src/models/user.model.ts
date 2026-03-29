@@ -22,7 +22,6 @@ const userSchema = new Schema<IUser>(
     image: { type: String, required: true },
     bio: { type: String, required: false },
     googleId: { type: String, sparse: true },
-    avatar: { type: String },
     authProvider: { type: String, enum: ["local", "google"], default: "local" },
     refreshToken: { type: String, default: null },
     // Friend/user connections. Stored as user ObjectId references.

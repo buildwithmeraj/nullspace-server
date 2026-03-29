@@ -10,9 +10,13 @@ export interface IUser {
   bio?: string;
   role: "admin" | "user";
   googleId?: string;
-  avatar?: string;
   authProvider?: "local" | "google";
   refreshToken?: string | null;
   // Friend/user connections. Stores referenced user ids.
   friends?: (Types.ObjectId | string)[];
 }
+
+// Payload for authenticated users updating their own profile.
+export type UpdateProfileInput = Partial<
+  Pick<IUser, "name" | "username" | "bio" | "image">
+>;

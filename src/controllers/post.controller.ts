@@ -5,7 +5,12 @@ import { User } from "../models/user.model";
 
 const POST_CONTENT_MAX_CHARS = 10_000;
 
-type PostAuthor = { _id: unknown; name?: string; username?: string };
+type PostAuthor = {
+  _id: unknown;
+  name?: string;
+  username?: string;
+  image?: string;
+};
 
 function getRequestUser(req: Request) {
   // `protect` middleware attaches `{ _id, name, username, email, role }` to `req.user`.
@@ -38,7 +43,7 @@ async function attachAuthors<T extends { userId: unknown }>(posts: T[]) {
   }
 
   const users = await User.find({ _id: { $in: userIds } })
-    .select("_id name username")
+    .select("_id name username image")
     .lean();
 
   const userById = new Map<string, PostAuthor>();
@@ -79,7 +84,7 @@ const create = async (req: Request, res: Response) => {
   const post = await Post.create({ userId: user._id, content, images });
   const created = post.toObject() as { userId: unknown };
   const createdUser = await User.findById(created.userId)
-    .select("_id name username")
+    .select("_id name username image")
     .lean();
   return res
     .status(201)
@@ -165,7 +170,7 @@ const getById = async (req: Request, res: Response) => {
 
   const postObj = post.toObject() as { userId: unknown };
   const postUser = await User.findById(postObj.userId)
-    .select("_id name username")
+    .select("_id name username image")
     .lean();
 
   return res
@@ -220,7 +225,7 @@ const update = async (req: Request, res: Response) => {
   await post.save();
   const updated = post.toObject() as { userId: unknown };
   const updatedUser = await User.findById(updated.userId)
-    .select("_id name username")
+    .select("_id name username image")
     .lean();
   return res
     .status(200)

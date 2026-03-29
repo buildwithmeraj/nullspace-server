@@ -4,6 +4,7 @@ import passport from "passport";
 import { generateTokens } from "../utilities/token";
 import type { HydratedDocument } from "mongoose";
 import type { IUser } from "../types/user.interface";
+import { protect } from "../middleware/auth";
 
 const router = express.Router();
 
@@ -15,6 +16,12 @@ router.post("/login", userControllers.login);
 router.post("/logout", userControllers.logout);
 // Refresh access token
 router.post("/refresh", userControllers.refreshAccessToken);
+
+// Update current user's profile
+router.patch("/me", protect, userControllers.updateProfile);
+
+// Get a user by username
+router.get("/username/:username", userControllers.getUserByUsername);
 
 // Google auth
 router.get(

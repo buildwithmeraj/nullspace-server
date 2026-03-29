@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model";
 import { generateTokens } from "../utilities/token";
+import type { UpdateProfileInput } from "../types/user.interface";
 
 const getCookie = (req: Request, name: string): string | undefined => {
   // Reads a single cookie value from the raw `Cookie` header.
@@ -177,6 +178,114 @@ const getUser = async (req: Request, res: Response) => {
   }
 };
 
+// Get a user by username (public profile fields only).
+const getUserByUsername = async (req: Request, res: Response) => {
+  try {
+    const usernameParam = req.params.username;
+    const rawUsername = (
+      Array.isArray(usernameParam) ? usernameParam[0] : (usernameParam ?? "")
+    ).trim();
+    const username = rawUsername.replace(/^@/, "");
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: "username is required",
+      });
+    }
+
+    // Case-insensitive match so `/d/Foo` and `/d/foo` both work.
+    const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const user = await User.findOne({
+      username: { $regex: new RegExp(`^${escaped}$`, "i") },
+    }).select(
+      "-password -role -authProvider -refreshToken -__v",
+    );
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User fetched successfully",
+      data: user,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch user",
+      error: err.message,
+    });
+  }
+};
+
+// Update the currently logged-in user's profile (owner-only).
+const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as Request & { user?: Express.User }).user;
+    if (!authUser?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    // Allowlist fields that are safe for users to edit themselves.
+    const body = (req.body ?? {}) as UpdateProfileInput;
+    const next: Record<string, unknown> = {};
+    if (typeof body.name === "string") next.name = body.name.trim();
+    if (typeof body.username === "string") {
+      const username = body.username.trim();
+      next.username = username.length ? username : undefined;
+    }
+    if (typeof body.bio === "string") next.bio = body.bio.trim();
+    if (typeof body.image === "string") next.image = body.image.trim();
+    // Backward-compat: if older clients still send `avatar`, treat it as `image`.
+    if (typeof (req.body as any)?.avatar === "string" && !next.image) {
+      next.image = String((req.body as any).avatar).trim();
+    }
+
+    if (!Object.keys(next).length) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid profile fields provided",
+      });
+    }
+
+    const updated = await User.findByIdAndUpdate(authUser._id, next, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const userResponse = updated.toObject() as any;
+    delete userResponse.password;
+    delete userResponse.refreshToken;
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: userResponse,
+    });
+  } catch (err: any) {
+    // Duplicate key errors are common when updating `username`.
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Username already taken",
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update profile",
+      error: err.message,
+    });
+  }
+};
+
 export const refreshAccessToken = async (req: Request, res: Response) => {
   const token = getCookie(req, "refreshToken");
 
@@ -251,6 +360,8 @@ export const userControllers = {
   register,
   login,
   getUser,
+  getUserByUsername,
+  updateProfile,
   refreshAccessToken,
   logout,
 };
