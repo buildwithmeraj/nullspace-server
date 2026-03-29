@@ -9,6 +9,7 @@ router.use(protect);
 
 router.post("/", postControllers.create);
 router.post("/feed", postControllers.feed);
+router.get("/search", postControllers.search);
 router.get("/", postControllers.list);
 router.get("/friends", postControllers.listFriends);
 router.get("/user/:userId", postControllers.listByUser);

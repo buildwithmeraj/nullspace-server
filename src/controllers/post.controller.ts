@@ -4,6 +4,8 @@ import type { IPostImage } from "../types/post.interface";
 import { User } from "../models/user.model";
 
 const POST_CONTENT_MAX_CHARS = 10_000;
+const SEARCH_LIMIT_DEFAULT = 5;
+const SEARCH_LIMIT_MAX = 10;
 
 type PostAuthor = {
   _id: unknown;
@@ -67,6 +69,17 @@ function normalizeExcludeIds(raw: unknown): string[] {
     .map((v) => (typeof v === "string" ? v : v != null ? String(v) : ""))
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+function parseSearchLimit(raw: unknown, fallback: number) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(Math.floor(n), SEARCH_LIMIT_MAX);
+}
+
+function escapeRegExp(input: string) {
+  // Prevent user-controlled regex patterns from being interpreted as regex operators.
+  return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function samplePosts(query: Record<string, unknown>, size: number) {
@@ -168,6 +181,39 @@ const feed = async (req: Request, res: Response) => {
       posts: withAuthors,
       hasMore: friendsRemaining + othersRemaining > merged.length,
     },
+  });
+};
+
+const search = async (req: Request, res: Response) => {
+  const user = getRequestUser(req);
+  if (!user?._id)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+
+  const q = typeof req.query?.query === "string" ? req.query.query.trim() : "";
+  if (!q || q.length < 2) {
+    return res.status(200).json({
+      success: true,
+      message: "Search query too short",
+      data: { posts: [] },
+    });
+  }
+
+  const limit = parseSearchLimit(req.query?.limit, SEARCH_LIMIT_DEFAULT);
+  const pattern = escapeRegExp(q);
+
+  // Simple content search. For better relevance, add a text index and use `$text`.
+  const posts = await Post.find({
+    content: { $regex: pattern, $options: "i" },
+  })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  const postsWithUser = await attachAuthors(posts);
+  return res.status(200).json({
+    success: true,
+    message: "Posts searched",
+    data: { posts: postsWithUser },
   });
 };
 
@@ -341,6 +387,7 @@ const remove = async (req: Request, res: Response) => {
 export const postControllers = {
   create,
   feed,
+  search,
   list,
   listByUser,
   listFriends,
