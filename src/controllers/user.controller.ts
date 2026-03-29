@@ -130,7 +130,8 @@ const login = async (req: Request, res: Response) => {
     if ((user as any).authProvider === "google") {
       return res.status(400).json({
         success: false,
-        message: "This account uses Google sign-in. Please continue with Google.",
+        message:
+          "This account uses Google sign-in. Please continue with Google.",
         code: "AUTH_PROVIDER_MISMATCH",
       });
     }
@@ -184,24 +185,6 @@ const login = async (req: Request, res: Response) => {
   }
 };
 
-// // Get all users
-// const getUsers = async (req: Request, res: Response) => {
-//   try {
-//     const users = await User.find().select("-password");
-//     res.status(200).json({
-//       success: true,
-//       message: "Users fetched successfully",
-//       data: users,
-//     });
-//   } catch (err: any) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Failed to fetch users",
-//       error: err.message,
-//     });
-//   }
-// };
-
 // Get a user
 const getUser = async (req: Request, res: Response) => {
   try {
@@ -253,9 +236,7 @@ const getUserByUsername = async (req: Request, res: Response) => {
     const escaped = username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const user = await User.findOne({
       username: { $regex: new RegExp(`^${escaped}$`, "i") },
-    }).select(
-      "-password -role -authProvider -refreshToken -__v",
-    );
+    }).select("-password -role -authProvider -refreshToken -__v");
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -272,6 +253,53 @@ const getUserByUsername = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch user",
+      error: err.message,
+    });
+  }
+};
+
+// Search users for mentions/autocomplete (username required).
+const searchUsers = async (req: Request, res: Response) => {
+  try {
+    const queryRaw = req.query.query as string | undefined;
+    const query = (queryRaw ?? "").trim().replace(/^@/, "");
+
+    if (!query) {
+      return res.status(200).json({
+        success: true,
+        message: "Users fetched successfully",
+        data: [],
+      });
+    }
+
+    // Keep it cheap: short queries can be too broad.
+    if (query.length < 2) {
+      return res.status(200).json({
+        success: true,
+        message: "Users fetched successfully",
+        data: [],
+      });
+    }
+
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rx = new RegExp(escaped, "i");
+
+    const users = await User.find({
+      username: { $exists: true, $ne: "", $regex: rx },
+    })
+      .select("_id name username image")
+      .limit(10)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Users fetched successfully",
+      data: users,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to search users",
       error: err.message,
     });
   }
@@ -313,7 +341,9 @@ const updateProfile = async (req: Request, res: Response) => {
     });
 
     if (!updated) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     const userResponse = updated.toObject() as any;
@@ -416,6 +446,7 @@ export const userControllers = {
   login,
   getUser,
   getUserByUsername,
+  searchUsers,
   updateProfile,
   refreshAccessToken,
   logout,

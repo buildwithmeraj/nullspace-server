@@ -20,6 +20,9 @@ router.post("/refresh", userControllers.refreshAccessToken);
 // Update current user's profile
 router.patch("/me", protect, userControllers.updateProfile);
 
+// Search users (for mentions/autocomplete)
+router.get("/search", protect, userControllers.searchUsers);
+
 // Get a user by username
 router.get("/username/:username", userControllers.getUserByUsername);
 
