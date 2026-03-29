@@ -38,7 +38,10 @@ router.get("/:email", userControllers.getUser);
 // Google auth callback
 router.get(
   "/google/callback",
-  passport.authenticate("google", { session: false }),
+  passport.authenticate("google", {
+    session: false,
+    failureRedirect: `${process.env.CLIENT_URL ?? "http://localhost:3000"}/login?error=use_credentials`,
+  }),
   async (req, res) => {
     const user = req.user as HydratedDocument<IUser> | undefined;
     if (!user?._id) {

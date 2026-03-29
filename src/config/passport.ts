@@ -41,6 +41,12 @@ passport.use(
         // Otherwise, link Google to an existing local account with the same email.
         const existingByEmail = await User.findOne({ email });
         if (existingByEmail) {
+          // If this email already has a credentials account, don't silently link.
+          // Force the user to log in with credentials (or add an explicit "link account" flow later).
+          if (existingByEmail.authProvider === "local" && !existingByEmail.googleId) {
+            return done(null, false, { message: "USE_CREDENTIALS" } as any);
+          }
+
           existingByEmail.googleId = profile.id;
           existingByEmail.authProvider = "google";
           if (!existingByEmail.image) existingByEmail.image = photo ?? "";

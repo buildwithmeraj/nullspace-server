@@ -5,6 +5,7 @@ import { PostRoutes } from "./post.route";
 import { ReactionRoutes } from "./reaction.route";
 import { CommentRoutes } from "./comment.route";
 import { FriendRoutes } from "./friend.route";
+import { NotificationRoutes } from "./notification.route";
 
 const router = express.Router();
 
@@ -33,6 +34,10 @@ const moduleRoutes = [
   {
     path: "/cloudinary",
     route: CloudinaryRoutes,
+  },
+  {
+    path: "/notifications",
+    route: NotificationRoutes,
   },
 ];
 

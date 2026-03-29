@@ -1,11 +1,15 @@
 import app from "./app";
 import config from "./config";
 import { connectDatabase } from "./models/db";
+import { createServer } from "http";
+import { initSocket } from "./socket";
 
 async function main() {
   // Start HTTP server after critical dependencies (DB) are ready.
   const startServer = () => {
-    app.listen(config.port, () => {
+    const server = createServer(app);
+    initSocket(server);
+    server.listen(config.port, () => {
       console.log(`Server is listening on port ${config.port}`);
     });
   };

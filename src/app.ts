@@ -65,6 +65,7 @@ app.get(
   passport.authenticate("google", {
     session: false,
     callbackURL: authGoogleCallbackUrl,
+    failureRedirect: `${process.env.CLIENT_URL ?? "http://localhost:3000"}/login?error=use_credentials`,
   } as any),
   redirectWithTokens,
 );

@@ -23,7 +23,40 @@ const getCookie = (req: Request, name: string): string | undefined => {
 // Register user
 const register = async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const email =
+      typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    const password =
+      typeof req.body?.password === "string" ? req.body.password : "";
+    const image =
+      typeof req.body?.image === "string" ? req.body.image.trim() : "";
+
+    if (!name) {
+      return res
+        .status(400)
+        .json({ success: false, message: "name is required" });
+    }
+    if (!email) {
+      return res
+        .status(400)
+        .json({ success: false, message: "email is required" });
+    }
+    if (!password || !password.trim()) {
+      return res
+        .status(400)
+        .json({ success: false, message: "password is required" });
+    }
+    if (password.trim().length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "password must be at least 6 characters",
+      });
+    }
+    if (!image) {
+      return res
+        .status(400)
+        .json({ success: false, message: "image is required" });
+    }
 
     // Check if user already exists
     const isUserExist = await User.findOne({ email });
@@ -35,7 +68,14 @@ const register = async (req: Request, res: Response) => {
       });
     }
 
-    const savedUser = await User.create(req.body);
+    // Allowlist only the expected local-registration fields.
+    const savedUser = await User.create({
+      name,
+      email,
+      password: password.trim(),
+      image,
+      authProvider: "local",
+    });
 
     // Issue access token + refresh token (refresh token is also persisted on user for rotation/reuse detection).
     const { accessToken, refreshToken } = await generateTokens(
@@ -86,7 +126,22 @@ const login = async (req: Request, res: Response) => {
       });
     }
 
+    // Provider mismatch: Google-only users can't log in with credentials.
+    if ((user as any).authProvider === "google") {
+      return res.status(400).json({
+        success: false,
+        message: "This account uses Google sign-in. Please continue with Google.",
+        code: "AUTH_PROVIDER_MISMATCH",
+      });
+    }
+
     // Compare passwords
+    if (!user.password || typeof user.password !== "string") {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
     const isPasswordMatch = await bcrypt.compare(
       password,
       user.password as string,

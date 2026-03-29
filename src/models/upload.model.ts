@@ -23,7 +23,7 @@ export function getUploadModel(dbName?: string) {
   return getDbModel<IUpload>(
     "Upload",
     uploadSchema,
-    dbName || config.database_name,
+    dbName || config.cloudinary_db_name || config.database_name,
   );
 }
 

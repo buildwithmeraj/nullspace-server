@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 import { Reaction } from "../models/reaction.model";
+import { Post } from "../models/post.model";
+import { notify } from "../utilities/notify";
 
 function getRequestUser(req: Request) {
   return (req as Request & { user?: Express.User }).user;
@@ -23,11 +25,32 @@ const create = async (req: Request, res: Response) => {
   const postId = req.body?.postId;
   if (!postId) return res.status(400).json({ success: false, message: "postId is required" });
 
+  const existing = await Reaction.findOne({ postId }).select("userIds").lean();
+  const alreadyLoved = existing?.userIds?.some((id) => String(id) === String(user._id)) ?? false;
+
   const reaction = await Reaction.findOneAndUpdate(
     { postId },
     { $addToSet: { userIds: user._id } },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
+
+  // Notify post owner only on first-time "love" (and skip notifying yourself).
+  if (!alreadyLoved) {
+    const post = await Post.findById(postId).select("userId").lean();
+    const ownerId = post?.userId ? String(post.userId) : null;
+    if (ownerId && ownerId !== String(user._id)) {
+      await notify({
+        userId: ownerId,
+        type: "reaction",
+        message: `${String(user.name ?? "Someone")} reacted to your post`,
+        data: {
+          postId: String(postId),
+          fromUsername: String(user.username ?? ""),
+          fromName: String(user.name ?? ""),
+        },
+      });
+    }
+  }
 
   return res.status(201).json({ success: true, message: "Reaction saved", data: reaction });
 };
@@ -77,9 +100,11 @@ const update = async (req: Request, res: Response) => {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
 
+  const wasMember = isMember(user, reaction.userIds);
+
   if (action === "unlove") {
     reaction.userIds = reaction.userIds.filter((id) => String(id) !== String(user._id));
-  } else if (!isMember(user, reaction.userIds)) {
+  } else if (!wasMember) {
     reaction.userIds = [...reaction.userIds, user._id];
   }
 
@@ -90,6 +115,26 @@ const update = async (req: Request, res: Response) => {
   }
 
   await reaction.save();
+
+  // Notify only when a new love was added (not on unlove / no-op).
+  if (action !== "unlove" && !wasMember) {
+    const postId = String((reaction as any).postId);
+    const post = await Post.findById(postId).select("userId").lean();
+    const ownerId = post?.userId ? String(post.userId) : null;
+    if (ownerId && ownerId !== String(user._id)) {
+      await notify({
+        userId: ownerId,
+        type: "reaction",
+        message: `${String(user.name ?? "Someone")} reacted to your post`,
+        data: {
+          postId,
+          fromUsername: String(user.username ?? ""),
+          fromName: String(user.name ?? ""),
+        },
+      });
+    }
+  }
+
   return res.status(200).json({ success: true, message: "Reaction updated", data: reaction });
 };
 

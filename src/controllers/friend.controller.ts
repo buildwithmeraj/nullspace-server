@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { Friend } from "../models/friend.model";
 import { User } from "../models/user.model";
+import { notify } from "../utilities/notify";
 
 function getRequestUser(req: Request) {
   return (req as Request & { user?: Express.User }).user;
@@ -85,6 +86,19 @@ const create = async (req: Request, res: Response) => {
     status: "pending",
   });
 
+  // Notify recipient in real-time (and store in DB).
+  await notify({
+    userId: String(recipientId),
+    type: "alliance_request",
+    message: `${String(user.name ?? "Someone")} sent you an alliance request`,
+    data: {
+      friendId: String((friend as any)._id),
+      requesterId: String(user._id),
+      fromUsername: String(user.username ?? ""),
+      fromName: String(user.name ?? ""),
+    },
+  });
+
   return res
     .status(201)
     .json({ success: true, message: "Friend request sent", data: friend });
@@ -161,6 +175,19 @@ const update = async (req: Request, res: Response) => {
   friend.status = "accepted";
   await friend.save();
   await syncFriendsOnAccept(friend.requesterId, friend.recipientId);
+
+  // Notify requester that the recipient accepted.
+  await notify({
+    userId: String(friend.requesterId),
+    type: "alliance_accepted",
+    message: `${String(user.name ?? "Someone")} accepted your alliance request`,
+    data: {
+      friendId: String((friend as any)._id),
+      recipientId: String(user._id),
+      fromUsername: String(user.username ?? ""),
+      fromName: String(user.name ?? ""),
+    },
+  });
 
   return res
     .status(200)

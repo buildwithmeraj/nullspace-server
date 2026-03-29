@@ -17,7 +17,18 @@ const userSchema = new Schema<IUser>(
       trim: true,
     },
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: false, select: false },
+    password: {
+      type: String,
+      required: false,
+      // Prevent persisting empty-string passwords (can happen if some code mutates the document).
+      set: (value: unknown) => {
+        if (typeof value !== "string") return value as any;
+        const trimmed = value.trim();
+        return trimmed.length ? trimmed : undefined;
+      },
+      minlength: 6,
+      select: false,
+    },
     role: { type: String, enum: ["admin", "user"], default: "user" },
     image: { type: String, required: true },
     bio: { type: String, required: false },
@@ -47,13 +58,7 @@ userSchema.pre("save", async function () {
 });
 
 userSchema.post("save", function (user, next) {
-  console.log(
-    `[Post-Save Hook]: A new user was created with email: ${user.email}`,
-  );
-
-  // Prevent leaking hashed password via the returned document instance.
-  user.password = "";
-
+  console.log(`[Post-Save Hook]: A new user was created with email: ${user.email}`);
   next();
 });
 

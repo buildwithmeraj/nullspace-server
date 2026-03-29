@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 import { Comment } from "../models/comment.model";
+import { Post } from "../models/post.model";
+import { notify } from "../utilities/notify";
 
 const COMMENT_CONTENT_MAX_CHARS = 5_000;
 
@@ -33,6 +35,24 @@ const create = async (req: Request, res: Response) => {
   }
 
   const comment = await Comment.create({ postId, userId: user._id, content });
+
+  // Notify post owner (skip notifying yourself).
+  const post = await Post.findById(postId).select("userId").lean();
+  const ownerId = post?.userId ? String(post.userId) : null;
+  if (ownerId && ownerId !== String(user._id)) {
+    await notify({
+      userId: ownerId,
+      type: "comment",
+      message: `${String(user.name ?? "Someone")} commented on your post`,
+      data: {
+        postId: String(postId),
+        commentId: String((comment as any)._id),
+        fromUsername: String(user.username ?? ""),
+        fromName: String(user.name ?? ""),
+      },
+    });
+  }
+
   return res.status(201).json({ success: true, message: "Comment created", data: comment });
 };
 
