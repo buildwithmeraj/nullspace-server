@@ -55,6 +55,28 @@ async function attachAuthors<T extends { userId: unknown }>(posts: T[]) {
   }));
 }
 
+function parseLimit(raw: unknown, fallback: number) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(Math.floor(n), 15);
+}
+
+function normalizeExcludeIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((v) => (typeof v === "string" ? v : v != null ? String(v) : ""))
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+async function samplePosts(query: Record<string, unknown>, size: number) {
+  if (size <= 0) return [];
+  return (await Post.aggregate([
+    { $match: query },
+    { $sample: { size } },
+  ])) as Array<Record<string, unknown> & { userId: unknown }>;
+}
+
 const create = async (req: Request, res: Response) => {
   const user = getRequestUser(req);
   if (!user?._id)
@@ -93,6 +115,60 @@ const create = async (req: Request, res: Response) => {
       message: "Post created",
       data: { ...created, user: (createdUser as PostAuthor) ?? null },
     });
+};
+
+const feed = async (req: Request, res: Response) => {
+  const user = getRequestUser(req);
+  if (!user?._id)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+
+  const limit = parseLimit(req.body?.limit, 15);
+  const excludeIds = normalizeExcludeIds(req.body?.excludeIds);
+
+  const me = await User.findById(user._id).select("friends").lean();
+  const friendIds = (me?.friends ?? []).map((id) => String(id));
+  const friendAndSelfIds = Array.from(
+    new Set([...friendIds, String(user._id)]),
+  );
+
+  const baseExclude =
+    excludeIds.length > 0 ? { _id: { $nin: excludeIds } } : {};
+
+  // 1) Friends (and self) first.
+  const friendsQuery: Record<string, unknown> = {
+    ...baseExclude,
+    userId: { $in: friendAndSelfIds },
+  };
+  const friendPosts = await samplePosts(friendsQuery, limit);
+
+  // 2) Fill with non-friends.
+  const remaining = limit - friendPosts.length;
+  const othersQuery: Record<string, unknown> = {
+    ...baseExclude,
+    userId: {
+      $nin: friendAndSelfIds,
+    },
+  };
+  const otherPosts =
+    remaining > 0 ? await samplePosts(othersQuery, remaining) : [];
+
+  const merged = [...friendPosts, ...otherPosts];
+  const withAuthors = await attachAuthors(merged);
+
+  // Determine if there are any posts left (excluding what the client already has).
+  const [friendsRemaining, othersRemaining] = await Promise.all([
+    Post.countDocuments(friendsQuery),
+    Post.countDocuments(othersQuery),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    message: "Feed fetched",
+    data: {
+      posts: withAuthors,
+      hasMore: friendsRemaining + othersRemaining > merged.length,
+    },
+  });
 };
 
 const list = async (req: Request, res: Response) => {
@@ -264,6 +340,7 @@ const remove = async (req: Request, res: Response) => {
 
 export const postControllers = {
   create,
+  feed,
   list,
   listByUser,
   listFriends,
