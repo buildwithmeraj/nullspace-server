@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { Types } from "mongoose";
 import { User } from "../models/user.model";
 import { generateTokens } from "../utilities/token";
 import type { UpdateProfileInput } from "../types/user.interface";
@@ -305,6 +306,47 @@ const searchUsers = async (req: Request, res: Response) => {
   }
 };
 
+// Suggest users to connect with (excludes self + existing friends).
+const suggestions = async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as Request & { user?: Express.User }).user;
+    if (!authUser?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const limitRaw = req.query.limit as string | undefined;
+    const limit = Math.max(1, Math.min(10, Number(limitRaw ?? 10) || 10));
+
+    const me = await User.findById(authUser._id).select("friends").lean();
+    const excludeIds = [authUser._id, ...((me?.friends ?? []) as any[])].map(
+      (id) => new Types.ObjectId(String(id)),
+    );
+
+    const users = await User.aggregate([
+      {
+        $match: {
+          _id: { $nin: excludeIds },
+          username: { $exists: true, $ne: "" },
+        },
+      },
+      { $sample: { size: limit } },
+      { $project: { _id: 1, name: 1, username: 1, image: 1, bio: 1 } },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Suggestions fetched successfully",
+      data: users,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch suggestions",
+      error: err.message,
+    });
+  }
+};
+
 // Update the currently logged-in user's profile (owner-only).
 const updateProfile = async (req: Request, res: Response) => {
   try {
@@ -447,6 +489,7 @@ export const userControllers = {
   getUser,
   getUserByUsername,
   searchUsers,
+  suggestions,
   updateProfile,
   refreshAccessToken,
   logout,

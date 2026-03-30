@@ -14,6 +14,9 @@ router.post("/logout", userControllers.logout);
 // Update current user's profile
 router.patch("/me", protect, userControllers.updateProfile);
 
+// Suggest random users to connect with
+router.get("/suggestions", protect, userControllers.suggestions);
+
 // Search users (for mentions/autocomplete)
 router.get("/search", protect, userControllers.searchUsers);
 
