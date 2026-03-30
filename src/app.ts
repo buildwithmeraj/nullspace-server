@@ -12,13 +12,31 @@ import type { IUser } from "./types/user.interface";
 
 const app: Application = express();
 
+const normalizeOrigin = (value: string) => value.replace(/\/+$/, "");
+const allowedOrigins = new Set(
+  [
+    process.env.CLIENT_URL,
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+  ]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .map((v) => normalizeOrigin(v.trim())),
+);
+
 // Middleware
 // Increase JSON size limit to support base64/data-uri uploads when needed.
 app.use(express.json({ limit: "10mb" }));
 app.use(
   cors({
     // Allow the frontend origin to send cookies (refresh token cookie).
-    origin: process.env.CLIENT_URL ?? "http://localhost:3000",
+    origin: (origin, callback) => {
+      // Allow non-browser tools (no Origin header) like curl/Postman.
+      if (!origin) return callback(null, true);
+      const normalized = normalizeOrigin(origin);
+      return callback(null, allowedOrigins.has(normalized));
+    },
     credentials: true,
   }),
 );
