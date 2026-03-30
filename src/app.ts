@@ -30,6 +30,7 @@ const serverOrigin =
   process.env.SERVER_URL?.replace(/\/+$/, "") ??
   `http://localhost:${String(process.env.PORT ?? 5000)}`;
 const authGoogleCallbackUrl = `${serverOrigin}/auth/google/callback`;
+const cookieSameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
 
 async function redirectWithTokens(req: Request, res: Response) {
   // Passport attaches the authenticated user onto `req.user`.
@@ -43,7 +44,7 @@ async function redirectWithTokens(req: Request, res: Response) {
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: cookieSameSite,
     path: "/",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });

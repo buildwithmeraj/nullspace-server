@@ -6,6 +6,8 @@ import { User } from "../models/user.model";
 import { generateTokens } from "../utilities/token";
 import type { UpdateProfileInput } from "../types/user.interface";
 
+const cookieSameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
+
 const getCookie = (req: Request, name: string): string | undefined => {
   // Reads a single cookie value from the raw `Cookie` header.
   const cookieHeader = req.headers.cookie;
@@ -87,7 +89,7 @@ const register = async (req: Request, res: Response) => {
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: cookieSameSite,
       path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -161,7 +163,7 @@ const login = async (req: Request, res: Response) => {
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: cookieSameSite,
       path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -445,7 +447,7 @@ export const refreshAccessToken = async (req: Request, res: Response) => {
     res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: cookieSameSite,
       path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
@@ -476,7 +478,7 @@ export const logout = async (req: Request, res: Response) => {
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: cookieSameSite,
     path: "/",
   });
 
