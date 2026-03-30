@@ -42,31 +42,53 @@ router.get("/:email", userControllers.getUser);
 // Google auth callback
 router.get(
   "/google/callback",
-  passport.authenticate("google", {
-    session: false,
-    failureRedirect: `${process.env.CLIENT_URL ?? "http://localhost:3000"}/login?error=use_credentials`,
-  }),
-  async (req, res) => {
-    const user = req.user as HydratedDocument<IUser> | undefined;
-    if (!user?._id) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
-    }
+  (req, res, next) => {
+    // Use the custom callback form so we can gracefully handle OAuth errors
+    // (otherwise passport errors bubble as 500s with no helpful redirect).
+    passport.authenticate(
+      "google",
+      { session: false },
+      async (err: unknown, user: unknown, info: unknown) => {
+        const clientUrl = process.env.CLIENT_URL ?? "http://localhost:3000";
 
-    const { accessToken, refreshToken } = await generateTokens(user);
+        if (err) {
+          // Log for Render diagnostics; keep the client redirect generic.
+          // eslint-disable-next-line no-console
+          console.error("[Google OAuth] callback error:", err);
+          return res.redirect(`${clientUrl}/login?error=google_auth_failed`);
+        }
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: cookieSameSite,
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+        // Provider mismatch: our strategy uses `USE_CREDENTIALS` to indicate a local account exists.
+        const infoMessage =
+          typeof (info as any)?.message === "string" ? (info as any).message : "";
+        if (!user) {
+          if (infoMessage === "USE_CREDENTIALS") {
+            return res.redirect(`${clientUrl}/login?error=use_credentials`);
+          }
+          return res.redirect(`${clientUrl}/login?error=google_auth_failed`);
+        }
 
-    // Redirect to frontend with accessToken as a URL param (short-lived, safe)
-    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${accessToken}`);
+        try {
+          const typedUser = user as HydratedDocument<IUser>;
+          const { accessToken, refreshToken } = await generateTokens(typedUser);
+
+          res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: cookieSameSite,
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+          });
+
+          // Redirect to frontend with accessToken as a URL param (short-lived, safe)
+          return res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`);
+        } catch (tokenErr) {
+          // eslint-disable-next-line no-console
+          console.error("[Google OAuth] token issue:", tokenErr);
+          return res.redirect(`${clientUrl}/login?error=google_auth_failed`);
+        }
+      },
+    )(req, res, next);
   },
 );
 
