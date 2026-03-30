@@ -5,8 +5,10 @@ import { Types } from "mongoose";
 import { User } from "../models/user.model";
 import { generateTokens } from "../utilities/token";
 import type { UpdateProfileInput } from "../types/user.interface";
-
-const cookieSameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
+import {
+  getRefreshCookieClearOptions,
+  getRefreshCookieOptions,
+} from "../utilities/refreshCookie";
 
 const getCookie = (req: Request, name: string): string | undefined => {
   // Reads a single cookie value from the raw `Cookie` header.
@@ -86,13 +88,7 @@ const register = async (req: Request, res: Response) => {
     );
 
     // Store refresh token in an httpOnly cookie so it is not accessible to client-side JS.
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: cookieSameSite,
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", refreshToken, getRefreshCookieOptions(req));
 
     // Omit password from response
     const userResponse = savedUser.toObject() as any;
@@ -160,13 +156,7 @@ const login = async (req: Request, res: Response) => {
     const { accessToken, refreshToken } = await generateTokens(user as any);
 
     // Store refresh token in an httpOnly cookie; access token is returned in the JSON response.
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: cookieSameSite,
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", refreshToken, getRefreshCookieOptions(req));
 
     // Omit password from response
     const userResponse = user.toObject() as any;
@@ -473,13 +463,7 @@ export const refreshAccessToken = async (req: Request, res: Response) => {
       await generateTokens(user);
 
     // Set new cookie
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: cookieSameSite,
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", newRefreshToken, getRefreshCookieOptions(req));
 
     const userResponse = user.toObject() as any;
     delete userResponse.password;
@@ -504,12 +488,7 @@ export const logout = async (req: Request, res: Response) => {
   }
 
   // Clearing cookies should use the same cookie attributes used when setting it.
-  res.clearCookie("refreshToken", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: cookieSameSite,
-    path: "/",
-  });
+  res.clearCookie("refreshToken", getRefreshCookieClearOptions(req));
 
   return res.json({ message: "Logged out" });
 };

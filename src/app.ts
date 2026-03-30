@@ -9,8 +9,11 @@ import router from "./routes";
 import "./config/passport";
 import { generateTokens } from "./utilities/token";
 import type { IUser } from "./types/user.interface";
+import { getRefreshCookieOptions } from "./utilities/refreshCookie";
 
 const app: Application = express();
+// Ensure secure cookies work behind Render's proxy (x-forwarded-proto).
+app.set("trust proxy", 1);
 
 const normalizeOrigin = (value: string) => value.replace(/\/+$/, "");
 const allowedOrigins = new Set(
@@ -48,8 +51,6 @@ const serverOrigin =
   process.env.SERVER_URL?.replace(/\/+$/, "") ??
   `http://localhost:${String(process.env.PORT ?? 5000)}`;
 const authGoogleCallbackUrl = `${serverOrigin}/auth/google/callback`;
-const cookieSameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
-
 async function redirectWithTokens(req: Request, res: Response) {
   // Passport attaches the authenticated user onto `req.user`.
   const user = req.user as HydratedDocument<IUser> | undefined;
@@ -59,13 +60,7 @@ async function redirectWithTokens(req: Request, res: Response) {
 
   // Issue a new token pair and store refresh token in an httpOnly cookie.
   const { accessToken, refreshToken } = await generateTokens(user);
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: cookieSameSite,
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+  res.cookie("refreshToken", refreshToken, getRefreshCookieOptions(req));
 
   // Redirect back to the frontend with the short-lived access token.
   return res.redirect(
