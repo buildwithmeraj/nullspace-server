@@ -25,7 +25,7 @@ app.use(
 app.use(passport.initialize());
 
 // These routes are used by some clients that still rely on the legacy `/auth/google/*`
-// paths (the primary callback lives under `/api/v1/users/google/callback`).
+// paths (the primary callback lives under `/api/users/google/callback`).
 const serverOrigin =
   process.env.SERVER_URL?.replace(/\/+$/, "") ??
   `http://localhost:${String(process.env.PORT ?? 5000)}`;
@@ -74,7 +74,7 @@ app.get(
 );
 
 // Application routes
-app.use("/api/v1", router);
+app.use("/api", router);
 
 // Testing route
 app.get("/", (req: Request, res: Response) => {

@@ -1,4 +1,5 @@
 import express from "express";
+import { AuthRoutes } from "./auth.route";
 import { UserRoutes } from "./user.route";
 import { CloudinaryRoutes } from "./cloudinary.route";
 import { PostRoutes } from "./post.route";
@@ -12,6 +13,10 @@ const router = express.Router();
 
 // Central route registry: mount feature routers under their base paths.
 const moduleRoutes = [
+  {
+    path: "/auth",
+    route: AuthRoutes,
+  },
   {
     path: "/users",
     route: UserRoutes,

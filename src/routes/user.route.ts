@@ -8,14 +8,8 @@ import { protect } from "../middleware/auth";
 
 const router = express.Router();
 
-// Register user
-router.post("/register", userControllers.register);
-// Login user
-router.post("/login", userControllers.login);
 // Logout user
 router.post("/logout", userControllers.logout);
-// Refresh access token
-router.post("/refresh", userControllers.refreshAccessToken);
 
 // Update current user's profile
 router.patch("/me", protect, userControllers.updateProfile);
@@ -65,9 +59,7 @@ router.get(
     });
 
     // Redirect to frontend with accessToken as a URL param (short-lived, safe)
-    res.redirect(
-      `${process.env.CLIENT_URL}/auth/callback?token=${accessToken}`,
-    );
+    res.redirect(`${process.env.CLIENT_URL}/auth/callback?token=${accessToken}`);
   },
 );
 

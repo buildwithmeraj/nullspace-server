@@ -12,7 +12,7 @@ function getServerOrigin() {
 }
 
 // Must match the callback route (and the value configured in Google Cloud Console).
-const googleCallbackUrl = `${getServerOrigin()}/api/v1/users/google/callback`;
+const googleCallbackUrl = `${getServerOrigin()}/api/users/google/callback`;
 
 passport.use(
   new GoogleStrategy(

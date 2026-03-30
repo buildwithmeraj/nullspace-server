@@ -15,7 +15,6 @@ const reactionSchema = new Schema<IReaction>(
   },
 );
 
-reactionSchema.index({ postId: 1 }, { unique: true });
 reactionSchema.index({ userIds: 1 });
 
 export function getReactionModel(dbName?: string) {

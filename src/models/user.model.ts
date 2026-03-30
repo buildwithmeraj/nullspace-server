@@ -57,11 +57,6 @@ userSchema.pre("save", async function () {
   );
 });
 
-userSchema.post("save", function (user, next) {
-  console.log(`[Post-Save Hook]: A new user was created with email: ${user.email}`);
-  next();
-});
-
 export function getUserModel(dbName?: string) {
   return getDbModel<IUser>(
     "User",
