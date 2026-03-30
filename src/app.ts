@@ -1,3 +1,6 @@
+// Ensure `.env` is loaded even if this file is used as an entrypoint.
+import "./config";
+
 import cors from "cors";
 import express, { Application, Request, Response } from "express";
 import passport from "passport";

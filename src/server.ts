@@ -1,5 +1,5 @@
-import app from "./app";
 import config from "./config";
+import app from "./app";
 import { connectDatabase } from "./models/db";
 import { createServer } from "http";
 import { initSocket } from "./socket";

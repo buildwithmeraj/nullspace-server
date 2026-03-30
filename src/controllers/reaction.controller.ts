@@ -16,6 +16,36 @@ function isMember(user: Express.User | undefined, userIds: unknown) {
   return userIds.some((id) => String(id) === String(user._id));
 }
 
+const summaryByPost = async (req: Request, res: Response) => {
+  const user = getRequestUser(req);
+  if (!user?._id)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+
+  const postId = String(req.params.postId ?? "").trim();
+  if (!postId)
+    return res
+      .status(400)
+      .json({ success: false, message: "postId is required" });
+
+  // Share only what the client needs (count + my state). We deliberately avoid
+  // exposing the full `userIds` list to non-admins.
+  const reaction = await Reaction.findOne({ postId }).select("postId userIds");
+  const userIds = (reaction as any)?.userIds ?? [];
+  const count = Array.isArray(userIds) ? userIds.length : 0;
+  const lovedByMe = isMember(user, userIds);
+
+  return res.status(200).json({
+    success: true,
+    message: "Reaction summary fetched",
+    data: {
+      reactionId: reaction?._id ? String(reaction._id) : null,
+      postId: String(postId),
+      count,
+      lovedByMe,
+    },
+  });
+};
+
 const create = async (req: Request, res: Response) => {
   // "Create" means: ensure a reaction document exists for the post and add the
   // current user to the love set.
@@ -164,4 +194,11 @@ const remove = async (req: Request, res: Response) => {
   return res.status(200).json({ success: true, message: "Reaction removed", data: reaction });
 };
 
-export const reactionControllers = { create, list, getById, update, remove };
+export const reactionControllers = {
+  summaryByPost,
+  create,
+  list,
+  getById,
+  update,
+  remove,
+};

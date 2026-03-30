@@ -6,6 +6,7 @@ import { ReactionRoutes } from "./reaction.route";
 import { CommentRoutes } from "./comment.route";
 import { FriendRoutes } from "./friend.route";
 import { NotificationRoutes } from "./notification.route";
+import { AiRoutes } from "./ai.route";
 
 const router = express.Router();
 
@@ -38,6 +39,10 @@ const moduleRoutes = [
   {
     path: "/notifications",
     route: NotificationRoutes,
+  },
+  {
+    path: "/ai",
+    route: AiRoutes,
   },
 ];
 
