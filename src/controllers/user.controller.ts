@@ -188,6 +188,35 @@ const login = async (req: Request, res: Response) => {
   }
 };
 
+// Get the currently logged-in user (token-based; does not rely on cookies).
+const getMe = async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as Request & { user?: Express.User }).user;
+    if (!authUser?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const user = await User.findById(authUser._id).select(
+      "-password -refreshToken -__v",
+    );
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User fetched successfully",
+      data: user,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch user",
+      error: err.message,
+    });
+  }
+};
+
 // Get a user
 const getUser = async (req: Request, res: Response) => {
   try {
@@ -488,6 +517,7 @@ export const logout = async (req: Request, res: Response) => {
 export const userControllers = {
   register,
   login,
+  getMe,
   getUser,
   getUserByUsername,
   searchUsers,

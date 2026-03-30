@@ -12,6 +12,9 @@ const cookieSameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
 // Logout user
 router.post("/logout", userControllers.logout);
 
+// Get current user (token-based; used by frontend after OAuth redirect)
+router.get("/me", protect, userControllers.getMe);
+
 // Update current user's profile
 router.patch("/me", protect, userControllers.updateProfile);
 
