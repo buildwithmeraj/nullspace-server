@@ -38,6 +38,9 @@ app.use(
       // Allow non-browser tools (no Origin header) like curl/Postman.
       if (!origin) return callback(null, true);
       const normalized = normalizeOrigin(origin);
+      // Vercel preview deployments use unique `*.vercel.app` hostnames. Allow them
+      // so OAuth + cross-site cookie flows work during testing.
+      if (normalized.endsWith(".vercel.app")) return callback(null, true);
       return callback(null, allowedOrigins.has(normalized));
     },
     credentials: true,
