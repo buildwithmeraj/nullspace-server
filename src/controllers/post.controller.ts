@@ -285,19 +285,6 @@ const getById = async (req: Request, res: Response) => {
   if (!post)
     return res.status(404).json({ success: false, message: "Post not found" });
 
-  // Access rules:
-  // - admin: can read any post
-  // - owner: can read their own post
-  // - friends: can read posts that belong to their friends (used by the feed)
-  if (!isAdmin(user) && !isOwner(user, post.userId)) {
-    const me = await User.findById(user._id).select("friends").lean();
-    const friendIds = (me?.friends ?? []).map((id) => String(id));
-    const isFriend = friendIds.includes(String(post.userId));
-    if (!isFriend) {
-      return res.status(403).json({ success: false, message: "Forbidden" });
-    }
-  }
-
   const postObj = post.toObject() as { userId: unknown };
   const postUser = await User.findById(postObj.userId)
     .select("_id name username image")
