@@ -3,6 +3,14 @@ import { Friend } from "../models/friend.model";
 import { User } from "../models/user.model";
 import { notify } from "../utilities/notify";
 
+type FriendUser = {
+  _id: unknown;
+  name?: string;
+  username?: string;
+  image?: string;
+  bio?: string;
+};
+
 function getRequestUser(req: Request) {
   return (req as Request & { user?: Express.User }).user;
 }
@@ -44,6 +52,34 @@ async function syncFriendsOnRemove(
     User.updateOne({ _id: requester }, { $pull: { friends: recipient } }),
     User.updateOne({ _id: recipient }, { $pull: { friends: requester } }),
   ]);
+}
+
+async function attachUsers<
+  T extends { requesterId: unknown; recipientId: unknown },
+>(relationships: T[]) {
+  const ids = Array.from(
+    new Set(
+      relationships
+        .flatMap((item) => [String(item.requesterId), String(item.recipientId)])
+        .filter(Boolean),
+    ),
+  );
+
+  if (!ids.length) return relationships;
+
+  const users = await User.find({ _id: { $in: ids } })
+    .select("_id name username image bio")
+    .lean();
+  const userById = new Map<string, FriendUser>();
+  for (const user of users) {
+    userById.set(String(user._id), user as FriendUser);
+  }
+
+  return relationships.map((item) => ({
+    ...item,
+    requester: userById.get(String(item.requesterId)) ?? null,
+    recipient: userById.get(String(item.recipientId)) ?? null,
+  }));
 }
 
 const create = async (req: Request, res: Response) => {
@@ -117,10 +153,11 @@ const list = async (req: Request, res: Response) => {
     : { $or: [{ requesterId: user._id }, { recipientId: user._id }] };
   if (status) query.status = status;
 
-  const friends = await Friend.find(query).sort({ createdAt: -1 });
+  const friends = await Friend.find(query).sort({ createdAt: -1 }).lean();
+  const withUsers = await attachUsers(friends);
   return res
     .status(200)
-    .json({ success: true, message: "Friends fetched", data: friends });
+    .json({ success: true, message: "Friends fetched", data: withUsers });
 };
 
 const getById = async (req: Request, res: Response) => {
@@ -129,7 +166,7 @@ const getById = async (req: Request, res: Response) => {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
 
-  const friend = await Friend.findById(req.params.id);
+  const friend = await Friend.findById(req.params.id).lean();
   if (!friend) {
     return res
       .status(404)
@@ -143,9 +180,10 @@ const getById = async (req: Request, res: Response) => {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
 
+  const [withUsers] = await attachUsers([friend]);
   return res
     .status(200)
-    .json({ success: true, message: "Friend fetched", data: friend });
+    .json({ success: true, message: "Friend fetched", data: withUsers });
 };
 
 const update = async (req: Request, res: Response) => {
