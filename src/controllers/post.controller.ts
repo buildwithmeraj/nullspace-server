@@ -1,7 +1,12 @@
 import type { Request, Response } from "express";
+import { v2 as cloudinary } from "cloudinary";
+import config from "../config";
 import { Post } from "../models/post.model";
 import type { IPostImage } from "../types/post.interface";
 import { User } from "../models/user.model";
+import { Comment } from "../models/comment.model";
+import { Reaction } from "../models/reaction.model";
+import { Upload } from "../models/upload.model";
 
 const POST_CONTENT_MAX_CHARS = 10_000;
 const SEARCH_LIMIT_DEFAULT = 5;
@@ -88,6 +93,54 @@ async function samplePosts(query: Record<string, unknown>, size: number) {
     { $match: query },
     { $sample: { size } },
   ])) as Array<Record<string, unknown> & { userId: unknown }>;
+}
+
+function configureCloudinaryIfAvailable() {
+  const cloudName =
+    config.cloudinary_cloud_name ?? process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = config.cloudinary_api_key ?? process.env.CLOUDINARY_API_KEY;
+  const apiSecret = config.cloudinary_secret ?? process.env.CLOUDINARY_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    return false;
+  }
+
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+  });
+
+  return true;
+}
+
+async function cleanupPostAssets(images: IPostImage[]) {
+  if (!images.length) return;
+
+  const urls = images.map((image) => String(image.url ?? "").trim()).filter(Boolean);
+  const inlinePublicIds = images
+    .map((image) => String(image.publicId ?? "").trim())
+    .filter(Boolean);
+
+  const uploads = urls.length
+    ? await Upload.find({ url: { $in: urls } }).select("publicId url")
+    : [];
+
+  const uploadPublicIds = uploads
+    .map((upload) => String(upload.publicId ?? "").trim())
+    .filter(Boolean);
+
+  const publicIds = Array.from(new Set([...inlinePublicIds, ...uploadPublicIds]));
+
+  if (publicIds.length && configureCloudinaryIfAvailable()) {
+    await Promise.allSettled(
+      publicIds.map((publicId) => cloudinary.uploader.destroy(publicId)),
+    );
+  }
+
+  if (urls.length) {
+    await Upload.deleteMany({ url: { $in: urls } });
+  }
 }
 
 const create = async (req: Request, res: Response) => {
@@ -367,6 +420,16 @@ const remove = async (req: Request, res: Response) => {
     return res.status(403).json({ success: false, message: "Forbidden" });
   }
 
+  const postId = String(post._id);
+  const images = Array.isArray(post.images)
+    ? ((post.images as unknown[]) as IPostImage[])
+    : [];
+
+  await Promise.all([
+    cleanupPostAssets(images),
+    Comment.deleteMany({ postId }),
+    Reaction.deleteMany({ postId }),
+  ]);
   await post.deleteOne();
   return res.status(200).json({ success: true, message: "Post deleted" });
 };
