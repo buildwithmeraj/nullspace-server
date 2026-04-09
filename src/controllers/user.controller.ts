@@ -327,6 +327,126 @@ const searchUsers = async (req: Request, res: Response) => {
   }
 };
 
+const checkUsernameAvailability = async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as Request & { user?: Express.User }).user;
+    if (!authUser?._id) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const rawUsername =
+      typeof req.query.username === "string" ? req.query.username : "";
+    const normalized = rawUsername.trim().replace(/^@/, "").toLowerCase();
+
+    if (!normalized) {
+      return res.status(400).json({
+        success: false,
+        message: "username is required",
+      });
+    }
+
+    if (!/^[a-z0-9_]{3,24}$/.test(normalized)) {
+      return res.status(200).json({
+        success: true,
+        message: "Username checked",
+        data: {
+          username: normalized,
+          available: false,
+          reason:
+            "Username must be 3-24 characters and use only lowercase letters, numbers, or underscores.",
+          suggestions: [],
+        },
+      });
+    }
+
+    const currentUsername = String(authUser.username ?? "")
+      .trim()
+      .replace(/^@/, "")
+      .toLowerCase();
+
+    if (currentUsername && currentUsername === normalized) {
+      return res.status(200).json({
+        success: true,
+        message: "Username checked",
+        data: {
+          username: normalized,
+          available: true,
+          reason: "This is already your current username.",
+          suggestions: [],
+        },
+      });
+    }
+
+    const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const existing = await User.findOne({
+      _id: { $ne: authUser._id },
+      username: { $regex: new RegExp(`^${escaped}$`, "i") },
+    })
+      .select("_id")
+      .lean();
+
+    if (!existing) {
+      return res.status(200).json({
+        success: true,
+        message: "Username checked",
+        data: {
+          username: normalized,
+          available: true,
+          reason: "Username is available.",
+          suggestions: [],
+        },
+      });
+    }
+
+    const base = normalized.slice(0, 18);
+    const candidates = Array.from(
+      new Set([
+        `${base}_${String(authUser.name ?? "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "")
+          .slice(0, 4)}`,
+        `${base}_${String(authUser._id).slice(-4).toLowerCase()}`,
+        `${base}${String(authUser._id).slice(-3).toLowerCase()}`,
+        `${base}_dev`,
+        `${base}_01`,
+        `${base}_app`,
+      ]),
+    )
+      .map((value) => value.replace(/_+/g, "_").replace(/^_+|_+$/g, ""))
+      .filter((value) => /^[a-z0-9_]{3,24}$/.test(value))
+      .slice(0, 6);
+
+    const taken = await User.find({
+      _id: { $ne: authUser._id },
+      username: { $in: candidates },
+    })
+      .select("username")
+      .lean();
+    const takenSet = new Set(
+      taken.map((entry) => String(entry.username ?? "").toLowerCase()),
+    );
+
+    const suggestions = candidates.filter((value) => !takenSet.has(value));
+
+    return res.status(200).json({
+      success: true,
+      message: "Username checked",
+      data: {
+        username: normalized,
+        available: false,
+        reason: "Username is already taken.",
+        suggestions,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to check username",
+      error: err.message,
+    });
+  }
+};
+
 // Suggest users to connect with (excludes self + existing friends).
 const suggestions = async (req: Request, res: Response) => {
   try {
@@ -499,6 +619,7 @@ export const userControllers = {
   getMe,
   getUser,
   getUserByUsername,
+  checkUsernameAvailability,
   searchUsers,
   suggestions,
   updateProfile,

@@ -24,6 +24,13 @@ router.get("/suggestions", protect, userControllers.suggestions);
 // Search users (for mentions/autocomplete)
 router.get("/search", protect, userControllers.searchUsers);
 
+// Check whether a username is available for the current user.
+router.get(
+  "/username-availability",
+  protect,
+  userControllers.checkUsernameAvailability,
+);
+
 // Get a user by username
 router.get("/username/:username", userControllers.getUserByUsername);
 
